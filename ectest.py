@@ -117,11 +117,17 @@ class FabricDomain(Domain):
         # CpQD switches and OVS b/c brokenness.
         sw1 = self.addSwitch('cpqd%s1' % self.getId(), cls=UserSwitch, dpopts='--no-local-port')
         sw2 = self.addSwitch('ovs%s01' % self.getId())
+
         # make sw2 the tether point       
         self.__tether = sw2
 
         # sw1-sw2-> to metro core
         self.addLink(sw1, sw2, port2=1)
+
+        # h-sw1
+        h = self.addHost('h%s' % self.getId(), cls=IpHost, ip='10.0.%s.1/24' % self.getId(),
+                         gateway='10.0.%s.254' % self.getId())
+        self.addLink(h, sw1)
 
     def getTether(self):
         """ get the switch name of this fabric facing the core """
