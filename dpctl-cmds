@@ -5,3 +5,8 @@ dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=1 apply:output=3
 dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=3 apply:output=1
 dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=2 apply:output=1
 dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=1 apply:output=2
+
+# for priority, matching on vlans - dpctl man page is terribly out of sync with CpQD's dpctl.
+# we resort to looking at their dpctl header files, utilities/dpctl.h.
+# https://github.com/CPqD/ofsoftswitch13/blob/8d3df820f7487f541b3f5862081a939aad76d8b5/utilities/dpctl.h
+dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add,prio=4096 in_port=2,vlan_vid=100 apply:output
