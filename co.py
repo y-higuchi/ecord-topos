@@ -2,11 +2,11 @@
 import json
 
 from mininet.net import Mininet
-from mininet.node import UserSwitch, OVSBridge, DefaultController, RemoteController, Host
+from mininet.node import UserSwitch, OVSBridge, RemoteController, Host
 from mininet.topo import Topo
 from mininet.log import  setLogLevel, info, error, warn
 from mininet.cli import CLI
-from mininet.link import OVSIntf
+from mininet.link import OVSIntf, Intf
 from mininet.util import quietRun
 from mininet.examples.vlanhost import VLANHost
 from domains import SegmentRoutedDomain
@@ -106,12 +106,15 @@ def attachDev(net, sw, dev):
     if hasattr(switch, "attach"):
         switch.attach(dev)
     else:
+        # not a dynamically configurable node.
+        # manually move to namespace and add port to switch
         switch.cmd('ip link set %s netns %s' % (dev, switch.pid))
+        Intf(dev, node=switch)
     info("Interface %s is attached to switch %s.\n" % (dev, sw))
 
 def setup(argv):
     ctls = sys.argv[1].split(',')
-    ifs = sys.argv[2].split(',') if len(sys.argv) == 2 else []
+    ifs = sys.argv[2].split(',') if len(sys.argv) > 1 else []
     co = CO(1)
     for i in range (len(ctls)):
         co.addController('c%s' % i, controller=RemoteController, ip=ctls[i])
