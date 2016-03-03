@@ -1,0 +1,7 @@
+# commands for path setup from ee->leaf101-spine12-leaf102->p6p2
+dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=2 apply:output=1
+dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=1 apply:output=2
+dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=1 apply:output=3
+dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=3 apply:output=1
+dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=2 apply:output=1
+dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=1 apply:output=2

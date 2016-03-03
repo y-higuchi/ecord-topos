@@ -33,7 +33,7 @@ class CO(SegmentRoutedDomain):
         # create m leaf switches, add f hosts.
         for sw in range(m):
             leaf = self.addSwitch('leaf%s0%s' % (self.getId(), sw+1),
-                                  cls=UserSwitch, dpopts='--no-local-port')
+                                  cls=UserSwitch, dpopts='--no-local-port --no-slicing')
             l_msw.append(self.noteLeaf(leaf))
             #uncomment to attach hosts onto leaf 
             #for h in range(f):
