@@ -1,12 +1,40 @@
 # commands for path setup from ee->leaf101-spine12-leaf102->p6p2
-dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=2 apply:output=1
-dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=1 apply:output=2
-dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=1 apply:output=3
-dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=3 apply:output=1
-dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=2 apply:output=1
-dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=1 apply:output=2
+# dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=2 apply:output=1
+# dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=1 apply:output=2
+# dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=1 apply:output=3
+# dpctl unix:/tmp/leaf102 flow-mod table=0,cmd=add in_port=3 apply:output=1
+# dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=2 apply:output=1
+# dpctl unix:/tmp/spine12 flow-mod table=0,cmd=add in_port=1 apply:output=2
 
 # for priority, matching on vlans - dpctl man page is terribly out of sync with CpQD's dpctl.
 # we resort to looking at their dpctl header files, utilities/dpctl.h.
 # https://github.com/CPqD/ofsoftswitch13/blob/8d3df820f7487f541b3f5862081a939aad76d8b5/utilities/dpctl.h
-dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add,prio=4096 in_port=2,vlan_vid=100 apply:output
+#
+# dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add,prio=4096 in_port=2,vlan_vid=100 apply:output=4
+#
+# convenience functions:
+#
+# ports <switch>: list port-names to port number for a switch
+# vlan <switch> <inport> <outport>: call dpctl for vlan-matching flowmod addition (high priority)
+# pass <switch> <inport> <outport>: call dpctl for all-matching flowmod addition (low priority)
+
+ports () {
+    dpctl unix:/tmp/${1} port-desc | sed -ne 's:.*no="\([0-9]*\).*name="\(.*eth[0-9]\).*:\2   \1: p'
+}
+
+vlan () {
+    dpctl unix:/tmp/${1} flow-mod table=0,cmd=add,prio=65000 in_port=${2},vlan_vid=100 apply:output=${3}
+}
+
+pass () {
+    dpctl unix:/tmp/${1} flow-mod table=0,cmd=add in_port=${2} apply:output=${3}
+}
+
+vlan leaf101 1 4
+vlan leaf101 4 1
+pass leaf101 4 3
+pass leaf101 3 4
+pass spine12 1 2
+pass spine12 2 1
+pass leaf102 1 3
+pass leaf102 3 1
