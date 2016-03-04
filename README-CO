@@ -1,0 +1,19 @@
+# Steps for running co(2).py, with flow and cross-connect setup.
+# example steps run on ecord2, with bridged external interface eth1.
+
+# 1. in one window start topology - point to real ONOS in time.
+sudo -s
+python ./co2.py 127.0.0.1 eth1
+
+# 2. program fabric path from host to eth1
+sh ./dpctl-cmds
+
+# 3. up interfaces and assign IPs
+## on mininet cli:
+h111 ifconfig h111-eth0.100 10.0.0.2
+## On cross-connect OVS
+ifconfig ovs1001-eth0 up
+ifconfig ovs1001-eth0.100 up
+
+#  4. configure VxLAN
+./ovs_vxlan.sh add ovs-1001 1001 1 <remoteIP> <localIP>
