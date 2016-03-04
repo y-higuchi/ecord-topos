@@ -125,8 +125,8 @@ class FabricDomain(Domain):
         self.addLink(sw1, sw2, port2=1)
 
         # h-sw1
-        h = self.addHost('h%s' % self.getId(), cls=IpHost, ip='10.0.%s.1/24' % self.getId(),
-                         gateway='10.0.%s.254' % self.getId())
+        h = self.addHost('h%s' % self.getId(), cls=IpHost, ip='10.0.0.%s/24' % self.getId(),
+                         gateway='10.0.0.254')
         self.addLink(h, sw1)
 
     def getTether(self):

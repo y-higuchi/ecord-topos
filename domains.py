@@ -40,7 +40,7 @@ class Domain(object):
         return (src, dst)
 
     def getId( self):
-        return self.__dId
+        return int(self.__dId)
 
     def getControllers(self, name=None):
         return self.__cmap.values() if not name else self.__cmap.get(name)
