@@ -23,7 +23,6 @@ from domains import SegmentRoutedDomain
 
 class CO(SegmentRoutedDomain):
 
-
     def __init__(self, did):
         SegmentRoutedDomain.__init__(self, did, self.toCfg, False)
         self.vlans = {}
@@ -68,23 +67,21 @@ class CO(SegmentRoutedDomain):
         cpqd = self.addVLANNode('h%s11' % self.getId(), 100)
         self.addLink(cpqd, ee)
 
-    def bootstrap(self, net, ifs):
+    def bootstrap(self, net, ifs=[]):
         """ Do post-build, pre-start work """
         xc='xc%s-eth0' % self.getId()
         leaf='leaf%s01-eth0' % self.getId()
 
         # set EE MAC/IP. fix this so it can take more than 10 VLANs.
         i=0
-        print(self.vlans)
         for name, vlan in self.vlans.iteritems():
-            print(self.getHosts())
             ee = self.getHosts(name)
             ee.setMAC(self.getMAC('%01d1' % i, '11'))
             quietRun('vconfig add %s %s' % (xc, vlan))
             i+=1
 
         # add the ports that we will use as VxLAN endpoints
-        errRun('ip link add %s type veth peer name %s' % (xc, leaf))
+        quietRun('ip link add %s type veth peer name %s' % (xc, leaf))
         quietRun('ifconfig %s hw ether %s' % (xc, self.getMAC('10', '01')))
         quietRun('ifconfig %s hw ether %s' % (leaf, self.getMAC('01', '01')))
         attachDev(net, 'leaf%s01' % self.getId(), leaf)
@@ -148,41 +145,68 @@ def attachDev(net, sw, dev):
         Intf(dev, node=switch)
     info("Interface %s is attached to switch %s.\n" % (dev, sw))
 
-def setup(argv):
-    did = sys.argv[1]
-    ctls = sys.argv[2].split(',')
-    ifs = sys.argv[3].split(',') if len(sys.argv) > 2 else []
-    co = CO(1)
-    co2 = CO(2)
-    for i in range (len(ctls)):
-        co.addController('c%s' % i, controller=RemoteController, ip=ctls[i])
-        co2.addController('c%s' % i, controller=RemoteController, ip=ctls[i])
+def setup():
+    cos = []
+    for d in CTLS.keys():
+        co = CO(d)
+        ctls = CTLS[d]
+        for i in range(len(ctls)):
+            co.addController('c%s%s' % (d, i), controller=RemoteController, ip=ctls[i])
+        co.build()
+        cos.append(co)
 
     # make/setup Mininet object
     net = Mininet()
-    co.build()
-    co2.build()
-    co.injectInto(net)
-    co2.injectInto(net)
-    #co.dumpCfg('co.json')
-    co.bootstrap(net, ifs)
-    co2.bootstrap(net, [])
+    for co in cos:
+        co.injectInto(net)
+        #co.dumpCfg('co%d.json' % co.getId())
+        ifs = INFS.get(co.getId()) 
+        co.bootstrap(net, ifs)
 
-    # start everything
+    # start everything, let it run its course
     net.build()
-    co.start()
-    co2.start()
-
+    map(lambda co: co.start(), cos)
     CLI(net)
     net.stop()
+
+# CO configuration arguments. DomainID to parameters in maps:
+# CTLS : domain ID to controllers (array)
+# INFS : domain ID to external interfaces
+CTLS={}
+INFS={}
+
+def parseable(argv):
+    """see if it can, and parse, the configs and add to maps of domainID to its configs."""
+    for conf in argv:
+        args=conf.split(':')
+        if len(args) < 2:
+            print('must specify at least a domain ID and controller')
+            return False
+        try:
+            did = int(args[0])
+        except ValueError:
+            print('domain ID must be an integer value')
+            return False
+        ctls = get(args, 1)
+        ifs = get(args, 2)
+        CTLS[did] = ctls.split(',')
+        INFS[did] = ifs.split(',') if ifs is not None else []
+    return True
+
+def get(l, v):
+    try:
+        return l[v]
+    except IndexError:
+        return None
 
 if __name__ == '__main__':
     setLogLevel('info')
     import sys
-    if len(sys.argv) < 2:
-        print ('Usage: sudo -E ./co.py [domainID] [ctrls] [interfaces]\n\n',
-               '[domainID] : a unique ID for this domain\n'
-               '[ctrls] : a comma-separated list of controller IPs\n',
-               '[interfaces] : a comma-separated list of interfaces to the world (optional)')
+    if len(sys.argv) < 2 or '-h' in sys.argv:
+        print ('Usage: sudo -E %s config1 config2 ...\n',
+               'config<n> : configurations for a CO, format domainID:[ctrls]:[ifs]\n'
+               '[ctrls]   : a comma-separated list of controller IPs\n',
+               '[ifs]     : a comma-separated list of interfaces to the world (optional)')
     else:
-        setup(sys.argv)
+        if parseable(sys.argv[1:]):
+            setup()
