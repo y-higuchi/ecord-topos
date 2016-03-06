@@ -18,30 +18,20 @@ from mininet.log import  setLogLevel, info, error, warn
 from mininet.cli import CLI
 from mininet.link import OVSIntf, Intf
 from mininet.util import quietRun, errRun
-from mininet.examples.vlanhost import VLANHost
 from domains import SegmentRoutedDomain
 
 class CO(SegmentRoutedDomain):
 
     def __init__(self, did):
         SegmentRoutedDomain.__init__(self, did, self.toCfg, False)
-        self.vlans = {}
         self.s2gw = {}
-
-    def addVLANNode(self, name, vlan):
-        """Add a VLAN traffic source"""
-        self.vlans[name] = vlan
-        vip='10.0.%d.%d' % (self.getId(), len(self.vlans))
-        return self.addHost(name, cls=VLANHost, vlan=vlan, ip=vip)
 
     def build(self, n=2, m=2):
         """
         bipartite graph, where n = spine; m = leaf; f = host fanout
         """
         opts='--no-local-port --no-slicing'
-        l_nsw=[]
-        l_msw=[]
-        l_h=[]
+        l_nsw, l_msw, l_h = [], [], []
 
         # create n spine switches.
         for sw in range(n):
@@ -64,20 +54,23 @@ class CO(SegmentRoutedDomain):
 
         # add VLAN-aware host to EE-side leaf
         ee = 'leaf%s01' % self.getId()
-        cpqd = self.addVLANNode('h%s11' % self.getId(), 100)
+        cpqd = self.addHost('h%s11' % self.getId(), cls=VLANHost)
         self.addLink(cpqd, ee)
 
-    def bootstrap(self, net, ifs=[]):
+    def bootstrap(self, net, vlans, ifs=[]):
         """ Do post-build, pre-start work """
         xc='xc%s-eth0' % self.getId()
         leaf='leaf%s01-eth0' % self.getId()
 
         # set EE MAC/IP. fix this so it can take more than 10 VLANs.
-        i=0
-        for name, vlan in self.vlans.iteritems():
-            ee = self.getHosts(name)
-            ee.setMAC(self.getMAC('%01d1' % i, '11'))
-            quietRun('vconfig add %s %s' % (xc, vlan))
+        ee = self.getHosts('h%s11' % self.getId())
+        ee.setMAC(self.getMAC('11', '11'))
+        # set the VLANs on host and cross connects.
+        i=1
+        print(vlans)
+        for v in vlans:
+            ee.addVLAN(int(v), '10.0.%d.%d/24' % (self.getId(), i))
+            quietRun('vconfig add %s %s' % (xc, v))
             i+=1
 
         # add the ports that we will use as VxLAN endpoints
@@ -123,6 +116,37 @@ class CO(SegmentRoutedDomain):
         n_mac = '02:ff:0a:%s:%s:%02x' % (unqf1, unqf2, self.getId())
         return n_mac
 
+class VLANHost(Host):
+    "Host connected to VLAN interface. Refer examples/vlanhost.py"
+
+    def __init__(self, name, *args, **kwargs):
+        super(VLANHost, self).__init__(name, *args, **kwargs)
+        self.vlans = {}
+
+    def config(self, vlan=None, **params):
+        """Configure VLANHost according to (optional) parameters:
+           vlan: VLAN ID for default interface"""
+        r = super(VLANHost, self).config(**params)
+        if vlan:
+            self.vlans.append(vlan, params['ip'])
+            self.addVLAN(vlan, params['ip'])
+        return r
+
+    def addVLAN( self, vlan, ip, iface=None ):
+        """Add a VLAN to an interface (default: primary)"""
+        if vlan in self.vlans:
+            # TBD: multiple IPs per VLAN? When needed.
+            return
+        intf = self.defaultIntf() if iface is None else self.intf(iface)
+        # remove IP from default, "physical" interface
+        self.cmd( 'ifconfig %s inet 0' % intf )
+        # create VLAN interface
+        self.cmd( 'vconfig add %s %d' % ( intf, vlan ) )
+        # assign the host's IP to the VLAN interface
+        self.cmd( 'ifconfig %s.%d inet %s' % ( intf, vlan, ip ) )
+        # update the intf name and host's intf map
+        newName = '%s.%d' % ( intf, vlan )
+
 class IpHost(Host):
     def __init__(self, name, gateway, *args, **kwargs):
         super(IpHost, self).__init__(name, *args, **kwargs)
@@ -160,8 +184,9 @@ def setup():
     for co in cos:
         co.injectInto(net)
         #co.dumpCfg('co%d.json' % co.getId())
+        vls = VLANS.get(co.getId())
         ifs = INFS.get(co.getId()) 
-        co.bootstrap(net, ifs)
+        co.bootstrap(net, vls, ifs)
 
     # start everything, let it run its course
     net.build()
@@ -171,16 +196,18 @@ def setup():
 
 # CO configuration arguments. DomainID to parameters in maps:
 # CTLS : domain ID to controllers (array)
+# VLANS : domain ID to vlans (array)
 # INFS : domain ID to external interfaces
 CTLS={}
+VLANS={}
 INFS={}
 
 def parseable(argv):
     """see if it can, and parse, the configs and add to maps of domainID to its configs."""
     for conf in argv:
         args=conf.split(':')
-        if len(args) < 2:
-            print('must specify at least a domain ID and controller')
+        if len(args) < 3:
+            print('must specify at least a domain ID, controller, and a VLAN')
             return False
         try:
             did = int(args[0])
@@ -188,8 +215,10 @@ def parseable(argv):
             print('domain ID must be an integer value')
             return False
         ctls = get(args, 1)
-        ifs = get(args, 2)
+        vlans = get(args, 2)
+        ifs = get(args, 3)
         CTLS[did] = ctls.split(',')
+        VLANS[did] = vlans.split(',')
         INFS[did] = ifs.split(',') if ifs is not None else []
     return True
 
@@ -204,8 +233,9 @@ if __name__ == '__main__':
     import sys
     if len(sys.argv) < 2 or '-h' in sys.argv:
         print ('Usage: sudo -E %s config1 config2 ...\n',
-               'config<n> : configurations for a CO, format domainID:[ctrls]:[ifs]\n'
+               'config<n> : configurations for a CO, format domainID:[ctrls]:[vlans]:[ifs]\n'
                '[ctrls]   : a comma-separated list of controller IPs\n',
+               '[vlans]   : a comma-separated list of VLANs at the EE\n'
                '[ifs]     : a comma-separated list of interfaces to the world (optional)')
     else:
         if parseable(sys.argv[1:]):
