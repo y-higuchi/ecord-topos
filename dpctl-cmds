@@ -1,3 +1,4 @@
+#!/bin/sh
 # commands for path setup from ee->leaf101-spine12-leaf102->p6p2
 # dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=2 apply:output=1
 # dpctl unix:/tmp/leaf101 flow-mod table=0,cmd=add in_port=1 apply:output=2
@@ -30,11 +31,13 @@ pass () {
     dpctl unix:/tmp/${1} flow-mod table=0,cmd=add in_port=${2} apply:output=${3}
 }
 
-vlan leaf101 1 4
-vlan leaf101 4 1
-pass leaf101 4 3
-pass leaf101 3 4
-pass spine12 1 2
-pass spine12 2 1
-pass leaf102 1 3
-pass leaf102 3 1
+d=${1:-1}
+
+vlan leaf${d}01 1 4
+vlan leaf${d}01 4 1
+pass leaf${d}01 4 3
+pass leaf${d}01 3 4
+pass spine${d}2 1 2
+pass spine${d}2 2 1
+pass leaf${d}02 1 3
+pass leaf${d}02 3 1

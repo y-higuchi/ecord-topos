@@ -17,7 +17,7 @@ from mininet.topo import Topo
 from mininet.log import  setLogLevel, info, error, warn
 from mininet.cli import CLI
 from mininet.link import OVSIntf, Intf
-from mininet.util import quietRun, errRun
+from mininet.util import quietRun
 from domains import SegmentRoutedDomain
 
 class CO(SegmentRoutedDomain):
@@ -68,10 +68,6 @@ class CO(SegmentRoutedDomain):
         # set the VLANs on host and cross connects.
         i=1
         print(vlans)
-        for v in vlans:
-            ee.addVLAN(int(v), '10.0.%d.%d/24' % (self.getId(), i))
-            quietRun('vconfig add %s %s' % (xc, v))
-            i+=1
 
         # add the ports that we will use as VxLAN endpoints
         quietRun('ip link add %s type veth peer name %s' % (xc, leaf))
@@ -80,6 +76,12 @@ class CO(SegmentRoutedDomain):
         attachDev(net, 'leaf%s01' % self.getId(), leaf)
         quietRun('ifconfig %s up' % xc)
         quietRun('ifconfig %s up' % leaf)
+
+        for v in vlans:
+            ee.addVLAN(int(v), '10.0.%d.%d/24' % (self.getId(), i))
+            quietRun('vconfig add %s %s' % (xc, v))
+            quietRun('ifconfig %s.%s up' % (xc, v))
+            i+=1
 
         # attach outside interfaces
         for i in ifs:
@@ -138,8 +140,6 @@ class VLANHost(Host):
             # TBD: multiple IPs per VLAN? When needed.
             return
         intf = self.defaultIntf() if iface is None else self.intf(iface)
-        # remove IP from default, "physical" interface
-        self.cmd( 'ifconfig %s inet 0' % intf )
         # create VLAN interface
         self.cmd( 'vconfig add %s %d' % ( intf, vlan ) )
         # assign the host's IP to the VLAN interface
@@ -178,7 +178,6 @@ def setup():
             co.addController('c%s%s' % (d, i), controller=RemoteController, ip=ctls[i])
         co.build()
         cos.append(co)
-
     # make/setup Mininet object
     net = Mininet()
     for co in cos:
@@ -187,10 +186,13 @@ def setup():
         vls = VLANS.get(co.getId())
         ifs = INFS.get(co.getId()) 
         co.bootstrap(net, vls, ifs)
-
     # start everything, let it run its course
     net.build()
-    map(lambda co: co.start(), cos)
+    for co in cos:
+        # remove IP from trunk interface of EE host (assigned by Mininet)
+        ee = net.get('h%d11' % co.getId())
+        ee.defaultIntf().ifconfig('inet', '0')
+        co.start()
     CLI(net)
     net.stop()
 
