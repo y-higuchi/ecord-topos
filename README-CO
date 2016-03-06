@@ -4,6 +4,8 @@
 # 1. in one window start topology - point to real ONOS in time.
 sudo -s
 python ./co2.py 127.0.0.1 eth1
+# or, if using twoCOs.py
+# ./twoCOs.py 1:127.0.0.1:eth0
 
 # 2. program fabric path from host to eth1
 sh ./dpctl-cmds
