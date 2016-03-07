@@ -3,19 +3,20 @@
 
 # 1. in one window start topology - point to real ONOS in time.
 sudo -s
-python ./co2.py 127.0.0.1 eth1
-# or, if using twoCOs.py
-# ./twoCOs.py 1:127.0.0.1:eth0
+./twoCOs.py 1:127.0.0.1:100:eth1
+# if using co2.py (old script)
+# python ./co2.py 127.0.0.1 eth1
 
 # 2. program fabric path from host to eth1
-sh ./dpctl-cmds
+./dpctl-cmds
+# if pointing to domain n: ./dpctl-cmds n
 
-# 3. up interfaces and assign IPs
-## on mininet cli:
-h111 ifconfig h111-eth0.100 10.0.0.2
-## On cross-connect OVS
-ifconfig ovs1001-eth0 up
-ifconfig ovs1001-eth0.100 up
+# attach cross connect VM here?
+
+# are the following below needed? Update based on VM configs
+## On cross-connect OVS 
+# ifconfig ovs1001-eth0 up
+# ifconfig ovs1001-eth0.100 up
 
 #  4. configure VxLAN
-./ovs_vxlan.sh add ovs-1001 1001 1 <remoteIP> <localIP>
+# ./ovs_vxlan.sh add ovs-1001 1001 1 <remoteIP> <localIP>

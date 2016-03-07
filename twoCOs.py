@@ -65,9 +65,6 @@ class CO(SegmentRoutedDomain):
         # set EE MAC/IP. fix this so it can take more than 10 VLANs.
         ee = self.getHosts('h%s11' % self.getId())
         ee.setMAC(self.getMAC('11', '11'))
-        # set the VLANs on host and cross connects.
-        i=1
-        print(vlans)
 
         # add the ports that we will use as VxLAN endpoints
         quietRun('ip link add %s type veth peer name %s' % (xc, leaf))
@@ -77,11 +74,11 @@ class CO(SegmentRoutedDomain):
         quietRun('ifconfig %s up' % xc)
         quietRun('ifconfig %s up' % leaf)
 
+        # set the VLANs on host and cross connects.
         for v in vlans:
-            ee.addVLAN(int(v), '10.0.%d.%d/24' % (self.getId(), i))
-            quietRun('vconfig add %s %s' % (xc, v))
-            quietRun('ifconfig %s.%s up' % (xc, v))
-            i+=1
+            ee.addVLAN(int(v), '10.0.%s.%d/24' % (v, self.getId()))
+            quietRun('vconfig add %s %d' % (xc, v))
+            quietRun('ifconfig %s.%d up' % (xc, v))
 
         # attach outside interfaces
         for i in ifs:
@@ -220,7 +217,7 @@ def parseable(argv):
         vlans = get(args, 2)
         ifs = get(args, 3)
         CTLS[did] = ctls.split(',')
-        VLANS[did] = vlans.split(',')
+        VLANS[did] = map(lambda v: int(v), vlans.split(','))
         INFS[did] = ifs.split(',') if ifs is not None else []
     return True
 
